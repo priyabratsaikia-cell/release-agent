@@ -3,156 +3,254 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Salesforce Release Impact Analyser</title>
+  <title>Release Impact Analyser — PwC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
-  <div id="app">
-    <!-- Header -->
-    <header class="header">
-      <div class="header-content">
-        <div class="logo">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
-          <h1>Release Impact Analyser</h1>
-        </div>
-        <div class="header-status">
-          <span id="org-badge" class="badge badge-disconnected">No Org Connected</span>
-          <span id="api-badge" class="badge badge-disconnected">API Key Not Set</span>
-        </div>
+<div id="app">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-mark">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#D04A02"/>
+          <path d="M8 12l8-4 8 4-8 4-8-4z" fill="#fff" opacity=".9"/>
+          <path d="M8 16l8 4 8-4" stroke="#fff" stroke-width="1.5" fill="none" opacity=".7"/>
+          <path d="M8 20l8 4 8-4" stroke="#fff" stroke-width="1.5" fill="none" opacity=".5"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">Release Agent</span>
+        <span class="brand-org">PwC</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item active" data-page="dashboard">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Dashboard</span>
+      </a>
+      <a class="nav-item" data-page="scans">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Scans &amp; Reports</span>
+      </a>
+      <div class="nav-divider"></div>
+      <a class="nav-item" data-page="settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="conn-status" id="sidebar-status">
+        <span class="conn-dot disconnected"></span>
+        <span class="conn-label">No org connected</span>
+      </div>
+      <div class="sidebar-version">v2.0</div>
+    </div>
+  </aside>
+
+  <!-- ── Main wrapper ─────────────────────────────────────────── -->
+  <div class="main-wrapper">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <h2 class="topbar-title" id="page-title">Dashboard</h2>
+      <div class="topbar-badges">
+        <span class="tb-badge" id="tb-model">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/></svg>
+          <span>No model</span>
+        </span>
+        <span class="tb-badge" id="tb-org">
+          <span class="conn-dot disconnected" style="width:7px;height:7px"></span>
+          <span>Not connected</span>
+        </span>
       </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="main">
-      <!-- Setup Panel -->
-      <section class="panel" id="setup-panel">
-        <h2 class="panel-title">Setup</h2>
-        <div class="panel-grid">
-          <!-- API Key Card -->
-          <div class="card">
-            <h3 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-              </svg>
+    <!-- ── Pages ────────────────────────────────────────────── -->
+    <main class="content">
+
+      <!-- DASHBOARD -->
+      <section class="page active" id="page-dashboard">
+        <div class="dash-stats" id="dash-stats"></div>
+        <div class="dash-grid">
+          <div class="dash-card dash-card-wide">
+            <div class="dash-card-header">
+              <h3>Recent Scans</h3>
+              <button class="btn btn-accent btn-sm" id="dash-new-scan-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Scan
+              </button>
+            </div>
+            <div id="dash-recent-scans" class="dash-table-wrap"></div>
+          </div>
+          <div class="dash-card">
+            <h3>Quick Actions</h3>
+            <div class="quick-actions">
+              <button class="qa-btn" id="qa-new-scan">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run Analysis
+              </button>
+              <button class="qa-btn" id="qa-connect-org">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                Connect Org
+              </button>
+              <button class="qa-btn" id="qa-settings">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCANS LIST -->
+      <section class="page" id="page-scans">
+        <div class="page-toolbar">
+          <h3>All Scans</h3>
+          <button class="btn btn-accent btn-sm" id="scans-new-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Scan
+          </button>
+        </div>
+        <div id="scans-list" class="scans-list"></div>
+      </section>
+
+      <!-- NEW SCAN -->
+      <section class="page" id="page-new-scan">
+        <div class="scan-launch-card">
+          <h3>Launch Impact Analysis</h3>
+          <p class="text-muted">Select a Salesforce release to analyse against your connected org.</p>
+          <div class="form-group" style="max-width:400px">
+            <label for="scan-release-select">Release</label>
+            <select id="scan-release-select"><option value="">Choose release…</option></select>
+          </div>
+          <button class="btn btn-accent" id="start-scan-btn" disabled>Start Analysis</button>
+        </div>
+
+        <!-- Pipeline progress -->
+        <div id="scan-progress" class="hidden">
+          <div class="pipeline" id="pipeline">
+            <div class="pipeline-step" data-step="1">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+              </div></div>
+              <div class="step-label">Crawl Release</div>
+              <div class="step-sub"></div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="2">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              </div></div>
+              <div class="step-label">Retrieve Metadata</div>
+              <div class="step-sub"></div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="3">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="12" cy="14" r="2"/></svg>
+              </div></div>
+              <div class="step-label">AI Analysis</div>
+              <div class="step-sub"></div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="4">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </div></div>
+              <div class="step-label">Generate Report</div>
+              <div class="step-sub"></div>
+            </div>
+          </div>
+
+          <div class="scan-progress-bar-wrap">
+            <div class="scan-progress-bar"><div class="scan-progress-fill" id="scan-progress-fill"></div></div>
+            <span class="scan-progress-pct" id="scan-progress-pct">0%</span>
+          </div>
+          <div class="scan-log" id="scan-log"></div>
+        </div>
+      </section>
+
+      <!-- SCAN DETAIL -->
+      <section class="page" id="page-scan-detail">
+        <button class="btn-back" id="detail-back-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Scans
+        </button>
+        <div id="detail-header" class="detail-header"></div>
+        <div class="detail-stats" id="detail-stats"></div>
+        <div class="detail-charts">
+          <div class="chart-card"><h4>Severity Distribution</h4><div class="chart-wrap"><canvas id="chart-severity"></canvas></div></div>
+          <div class="chart-card"><h4>Category Breakdown</h4><div class="chart-wrap"><canvas id="chart-category"></canvas></div></div>
+        </div>
+        <div class="detail-summary" id="detail-summary"></div>
+        <div class="detail-impacts-header">
+          <h3 id="impacts-title">Impacts</h3>
+          <div class="impact-filters">
+            <select id="filter-severity"><option value="">All Severities</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Info</option></select>
+            <label class="toggle-label"><input type="checkbox" id="filter-unresolved" /><span>Unresolved only</span></label>
+          </div>
+        </div>
+        <div id="detail-impacts"></div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="page" id="page-settings">
+        <div class="settings-grid">
+          <div class="settings-card">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
               Gemini API Key
             </h3>
             <div class="form-group">
-              <label for="api-key">API Key</label>
-              <input type="password" id="api-key" placeholder="Enter your Gemini API key" autocomplete="off" />
+              <label for="s-api-key">API Key</label>
+              <input type="password" id="s-api-key" placeholder="Enter your Gemini API key" autocomplete="off" />
+              <div class="input-hint" id="s-api-hint"></div>
             </div>
             <div class="form-group">
-              <label for="model-select">Model</label>
-              <select id="model-select">
+              <label for="s-model">Model</label>
+              <select id="s-model">
                 <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
                 <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
               </select>
             </div>
-            <button class="btn btn-primary" id="save-api-key-btn">Save API Key</button>
+            <div class="btn-row">
+              <button class="btn btn-accent" id="s-save-key-btn">Save Key</button>
+              <button class="btn btn-ghost btn-danger-text" id="s-remove-key-btn">Remove Key</button>
+            </div>
           </div>
 
-          <!-- Org Connection Card -->
-          <div class="card">
-            <h3 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M2 20h20"/>
-                <path d="M5 20V8.2c0-1.12 0-1.68.218-2.108a2 2 0 0 1 .874-.874C6.52 5 7.08 5 8.2 5h7.6c1.12 0 1.68 0 2.108.218a2 2 0 0 1 .874.874C19 6.52 19 7.08 19 8.2V20"/>
-                <path d="M9 9h2"/><path d="M9 13h2"/><path d="M13 9h2"/><path d="M13 13h2"/>
-                <path d="M9 20v-4h6v4"/>
-              </svg>
-              Salesforce Org
+          <div class="settings-card">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20"/><path d="M5 20V8.2c0-1.12 0-1.68.218-2.108a2 2 0 01.874-.874C6.52 5 7.08 5 8.2 5h7.6c1.12 0 1.68 0 2.108.218a2 2 0 01.874.874C19 6.52 19 7.08 19 8.2V20"/></svg>
+              Connected Orgs
             </h3>
-            <div class="form-group">
-              <label for="org-alias">Org Alias</label>
-              <input type="text" id="org-alias" value="release-agent-org" placeholder="e.g. myorg" />
+            <div id="s-org-list" class="org-list"></div>
+            <div class="connect-form">
+              <div class="form-group">
+                <label for="s-org-alias">Org Alias</label>
+                <input type="text" id="s-org-alias" value="release-agent-org" />
+              </div>
+              <label class="toggle-label"><input type="checkbox" id="s-sandbox" /><span>Sandbox</span></label>
+              <button class="btn btn-accent" id="s-connect-btn">Connect New Org</button>
             </div>
-            <div class="form-row">
-              <label class="checkbox-label">
-                <input type="checkbox" id="sandbox-toggle" />
-                <span>Sandbox</span>
-              </label>
-            </div>
-            <button class="btn btn-primary" id="connect-org-btn">Connect Org</button>
-            <div id="org-info" class="info-box hidden"></div>
           </div>
         </div>
       </section>
 
-      <!-- Analysis Panel -->
-      <section class="panel" id="analysis-panel">
-        <h2 class="panel-title">Run Analysis</h2>
-        <div class="card">
-          <div class="form-group">
-            <label for="release-select">Select Salesforce Release</label>
-            <select id="release-select">
-              <option value="">-- Choose a release --</option>
-            </select>
-          </div>
-          <button class="btn btn-accent btn-large" id="run-analysis-btn" disabled>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            Run Impact Analysis
-          </button>
-        </div>
-
-        <!-- Progress Section -->
-        <div id="progress-section" class="hidden">
-          <div class="progress-container">
-            <div class="progress-header">
-              <span id="progress-step">Step 0/4</span>
-              <span id="progress-percent">0%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            <p id="progress-message" class="progress-message">Initialising…</p>
-          </div>
-          <div id="progress-log" class="log-container"></div>
-        </div>
-      </section>
-
-      <!-- Report Panel -->
-      <section class="panel hidden" id="report-panel">
-        <div class="report-header">
-          <h2 class="panel-title">Impact Analysis Report</h2>
-          <button class="btn btn-secondary" id="export-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export HTML
-          </button>
-        </div>
-
-        <!-- Report Meta -->
-        <div class="report-meta" id="report-meta"></div>
-
-        <!-- Statistics Cards -->
-        <div class="stats-grid" id="stats-grid"></div>
-
-        <!-- Summary -->
-        <div class="card" id="report-summary"></div>
-
-        <!-- Impact List -->
-        <div id="impact-list"></div>
-      </section>
     </main>
-
-    <!-- Footer -->
-    <footer class="footer">
-      <p>Salesforce Release Impact Analyser &middot; Powered by LangGraph + Gemini AI</p>
-    </footer>
   </div>
+</div>
 
-  <!-- Toast Container -->
-  <div id="toast-container"></div>
-
-  <script src="/static/app.js"></script>
+<div id="toast-container"></div>
+<script src="/static/app.js"></script>
 </body>
 </html>
