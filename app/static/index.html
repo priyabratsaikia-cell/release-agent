@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salesforce Release Impact Analyser</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          <h1>Release Impact Analyser</h1>
+        </div>
+        <div class="header-status">
+          <span id="org-badge" class="badge badge-disconnected">No Org Connected</span>
+          <span id="api-badge" class="badge badge-disconnected">API Key Not Set</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Setup Panel -->
+      <section class="panel" id="setup-panel">
+        <h2 class="panel-title">Setup</h2>
+        <div class="panel-grid">
+          <!-- API Key Card -->
+          <div class="card">
+            <h3 class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+              </svg>
+              Gemini API Key
+            </h3>
+            <div class="form-group">
+              <label for="api-key">API Key</label>
+              <input type="password" id="api-key" placeholder="Enter your Gemini API key" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="model-select">Model</label>
+              <select id="model-select">
+                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+                <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="save-api-key-btn">Save API Key</button>
+          </div>
+
+          <!-- Org Connection Card -->
+          <div class="card">
+            <h3 class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 20h20"/>
+                <path d="M5 20V8.2c0-1.12 0-1.68.218-2.108a2 2 0 0 1 .874-.874C6.52 5 7.08 5 8.2 5h7.6c1.12 0 1.68 0 2.108.218a2 2 0 0 1 .874.874C19 6.52 19 7.08 19 8.2V20"/>
+                <path d="M9 9h2"/><path d="M9 13h2"/><path d="M13 9h2"/><path d="M13 13h2"/>
+                <path d="M9 20v-4h6v4"/>
+              </svg>
+              Salesforce Org
+            </h3>
+            <div class="form-group">
+              <label for="org-alias">Org Alias</label>
+              <input type="text" id="org-alias" value="release-agent-org" placeholder="e.g. myorg" />
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="sandbox-toggle" />
+                <span>Sandbox</span>
+              </label>
+            </div>
+            <button class="btn btn-primary" id="connect-org-btn">Connect Org</button>
+            <div id="org-info" class="info-box hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Analysis Panel -->
+      <section class="panel" id="analysis-panel">
+        <h2 class="panel-title">Run Analysis</h2>
+        <div class="card">
+          <div class="form-group">
+            <label for="release-select">Select Salesforce Release</label>
+            <select id="release-select">
+              <option value="">-- Choose a release --</option>
+            </select>
+          </div>
+          <button class="btn btn-accent btn-large" id="run-analysis-btn" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Run Impact Analysis
+          </button>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progress-section" class="hidden">
+          <div class="progress-container">
+            <div class="progress-header">
+              <span id="progress-step">Step 0/4</span>
+              <span id="progress-percent">0%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="progress-message" class="progress-message">Initialising…</p>
+          </div>
+          <div id="progress-log" class="log-container"></div>
+        </div>
+      </section>
+
+      <!-- Report Panel -->
+      <section class="panel hidden" id="report-panel">
+        <div class="report-header">
+          <h2 class="panel-title">Impact Analysis Report</h2>
+          <button class="btn btn-secondary" id="export-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export HTML
+          </button>
+        </div>
+
+        <!-- Report Meta -->
+        <div class="report-meta" id="report-meta"></div>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <!-- Summary -->
+        <div class="card" id="report-summary"></div>
+
+        <!-- Impact List -->
+        <div id="impact-list"></div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Salesforce Release Impact Analyser &middot; Powered by LangGraph + Gemini AI</p>
+    </footer>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
