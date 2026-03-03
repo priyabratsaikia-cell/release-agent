@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -184,21 +187,76 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
           Back to Scans
         </button>
-        <div id="detail-header" class="detail-header"></div>
-        <div class="detail-stats" id="detail-stats"></div>
-        <div class="detail-charts">
-          <div class="chart-card"><h4>Severity Distribution</h4><div class="chart-wrap"><canvas id="chart-severity"></canvas></div></div>
-          <div class="chart-card"><h4>Category Breakdown</h4><div class="chart-wrap"><canvas id="chart-category"></canvas></div></div>
+
+        <!-- Impact Summary header (mockup style) -->
+        <div class="report-hero">
+          <div class="report-hero-left">
+            <h2 class="report-hero-title">Impact Summary</h2>
+            <p class="report-hero-sub" id="detail-subtitle">High-level overview of remediation status and enterprise-wide impact.</p>
+          </div>
+          <button class="btn btn-accent btn-lg" id="export-report-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Full Report
+          </button>
         </div>
-        <div class="detail-summary" id="detail-summary"></div>
-        <div class="detail-impacts-header">
-          <h3 id="impacts-title">Impacts</h3>
-          <div class="impact-filters">
-            <select id="filter-severity"><option value="">All Severities</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Info</option></select>
-            <label class="toggle-label"><input type="checkbox" id="filter-unresolved" /><span>Unresolved only</span></label>
+
+        <!-- Stat cards row -->
+        <div class="report-stats" id="detail-stats"></div>
+
+        <!-- Charts row -->
+        <div class="report-charts">
+          <div class="report-chart-card">
+            <div class="report-chart-head"><h4>Impact by Severity</h4></div>
+            <div class="report-chart-body"><canvas id="chart-severity"></canvas></div>
+          </div>
+          <div class="report-chart-card">
+            <div class="report-chart-head"><h4>Category Breakdown</h4><span class="chart-head-tag" id="chart-cat-tag"></span></div>
+            <div class="report-chart-body"><canvas id="chart-category"></canvas></div>
           </div>
         </div>
-        <div id="detail-impacts"></div>
+
+        <!-- Executive summary -->
+        <div class="report-summary-card" id="detail-summary"></div>
+
+        <!-- Inventory table -->
+        <div class="inventory-section">
+          <div class="inventory-toolbar">
+            <h3>Detailed Component Inventory</h3>
+            <div class="inventory-controls">
+              <div class="inv-search-wrap">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="inv-search" placeholder="Search by component name, ID or owner…" />
+              </div>
+              <select id="filter-severity"><option value="">All Severities</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Info</option></select>
+              <label class="toggle-label" style="margin:0"><input type="checkbox" id="filter-unresolved" /><span>Unresolved only</span></label>
+            </div>
+          </div>
+          <div class="inv-table-wrap">
+            <table class="inv-table" id="inv-table">
+              <thead>
+                <tr>
+                  <th style="width:60px">#</th>
+                  <th>Name</th>
+                  <th style="width:130px">Impact Severity</th>
+                  <th style="width:140px">Status</th>
+                  <th style="width:150px">Category</th>
+                  <th style="width:80px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="inv-tbody"></tbody>
+            </table>
+          </div>
+          <div class="inv-footer" id="inv-footer"></div>
+        </div>
+
+        <!-- PwC footer -->
+        <div class="report-footer">
+          <div class="report-footer-brand">
+            <svg width="20" height="20" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="6" fill="#D04A02"/><path d="M8 12l8-4 8 4-8 4-8-4z" fill="#fff" opacity=".9"/><path d="M8 16l8 4 8-4" stroke="#fff" stroke-width="1.5" fill="none" opacity=".7"/></svg>
+            <span>PwC Impact Analytics</span>
+          </div>
+          <p>&copy; 2026 PwC. All rights reserved. PwC refers to the PwC network and/or one or more of its member firms.</p>
+        </div>
       </section>
 
       <!-- SETTINGS -->

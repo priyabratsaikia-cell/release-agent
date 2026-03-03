@@ -22,9 +22,9 @@
       "scans-list", "scans-new-btn",
       "scan-release-select", "start-scan-btn", "scan-progress",
       "scan-progress-fill", "scan-progress-pct", "scan-log", "pipeline",
-      "detail-back-btn", "detail-header", "detail-stats",
-      "detail-summary", "detail-impacts", "impacts-title",
-      "filter-severity", "filter-unresolved",
+      "detail-back-btn", "detail-stats", "detail-subtitle",
+      "detail-summary", "inv-tbody", "inv-footer", "inv-search",
+      "filter-severity", "filter-unresolved", "export-report-btn",
       "s-api-key", "s-model", "s-api-hint", "s-save-key-btn",
       "s-remove-key-btn", "s-org-list", "s-org-alias", "s-sandbox", "s-connect-btn",
       "toast-container",
@@ -69,7 +69,7 @@
     const target = pages[page];
     if (target) target.classList.add("active");
 
-    const titles = { dashboard: "Dashboard", scans: "Scans & Reports", "new-scan": "New Scan", "scan-detail": "Scan Detail", settings: "Settings" };
+    const titles = { dashboard: "Dashboard", scans: "Scans & Reports", "new-scan": "New Scan", "scan-detail": "Impact Summary", settings: "Settings" };
     el.page_title.textContent = titles[page] || page;
 
     if (page === "dashboard") loadDashboard();
@@ -202,8 +202,8 @@
     steps.forEach((s, i) => {
       const n = i + 1;
       s.classList.remove("active", "done", "error");
-      if (n < step) { s.classList.add("done"); }
-      else if (n === step) { s.classList.add(status === "error" ? "error" : "active"); }
+      if (n < step) s.classList.add("done");
+      else if (n === step) s.classList.add(status === "error" ? "error" : "active");
     });
     connectors.forEach((c, i) => {
       c.classList.remove("done", "active");
@@ -236,12 +236,10 @@
   async function startAnalysis() {
     const release = el.scan_release_select.value;
     if (!release) { toast("Select a release", "error"); return; }
-
     el.start_scan_btn.disabled = true;
     el.scan_progress.classList.remove("hidden");
     resetPipeline();
     addLog("Connecting to analysis engine…", "info");
-
     try {
       if (!ws || ws.readyState !== WebSocket.OPEN) await connectWs();
       ws.onmessage = (e) => handleWs(JSON.parse(e.data));
@@ -286,153 +284,286 @@
     }
   }
 
-  /* ── Scan Detail ─────────────────────────────────────────────── */
+  /* ═════════════════════════════════════════════════════════════════
+     SCAN DETAIL — mockup-matched rendering
+     ═════════════════════════════════════════════════════════════════ */
   let detailData = null;
+  let invPage = 1;
+  const INV_PER_PAGE = 10;
 
   async function loadScanDetail(scanId) {
     try {
       const scan = await api("GET", `/api/scans/${scanId}`);
       detailData = scan;
+      invPage = 1;
       renderDetail(scan);
     } catch (e) { toast("Failed to load scan: " + e.message, "error"); }
   }
 
   function renderDetail(scan) {
     const date = scan.started_at ? new Date(scan.started_at + "Z").toLocaleString() : "—";
-    el.detail_header.innerHTML = `
-      <div>
-        <div class="detail-title">${esc(scan.release_name)}</div>
-        <div class="detail-meta">
-          <span class="detail-tag"><span class="status-pill ${scan.status}" style="margin:0">${scan.status}</span></span>
-          <span class="detail-tag">Org: ${esc(scan.org_alias)}</span>
-          <span class="detail-tag">${date}</span>
-          <span class="detail-tag">${scan.total_changes || 0} changes · ${scan.total_components || 0} components</span>
-        </div>
-      </div>
-      <button class="btn btn-secondary btn-sm" onclick="window.__exportReport()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Export
-      </button>`;
+    const totalImpacts = (scan.impacts || []).length;
+    const resolved = (scan.impacts || []).filter((i) => i.is_resolved).length;
+    const inProgress = totalImpacts - resolved;
 
-    el.detail_stats.innerHTML = [
-      dsCard(scan.critical_count, "Critical", "critical"),
-      dsCard(scan.high_count, "High", "high"),
-      dsCard(scan.medium_count, "Medium", "medium"),
-      dsCard(scan.low_count, "Low", "low"),
-      dsCard(scan.info_count, "Info", "info"),
-    ].join("");
+    el.detail_subtitle.textContent =
+      `${esc(scan.release_name)} · ${esc(scan.org_alias)} · ${date} · ${scan.total_changes || 0} release changes analysed`;
+
+    // ── 4 stat cards ──
+    el.detail_stats.innerHTML = `
+      <div class="rstat accent">
+        <div class="rstat-label">Total Components</div>
+        <div class="rstat-num">${fmtNum(scan.total_components || 0)}</div>
+        <div class="rstat-trend neutral">${scan.total_changes || 0} changes scanned</div>
+      </div>
+      <div class="rstat success">
+        <div class="rstat-label">Remediated</div>
+        <div class="rstat-num">${fmtNum(resolved)}</div>
+        <div class="rstat-trend ${resolved > 0 ? "up" : "neutral"}">${totalImpacts > 0 ? Math.round(resolved / totalImpacts * 100) : 0}% of impacts</div>
+      </div>
+      <div class="rstat warning">
+        <div class="rstat-label">In Progress</div>
+        <div class="rstat-num">${fmtNum(inProgress)}</div>
+        <div class="rstat-trend neutral">Awaiting remediation</div>
+      </div>
+      <div class="rstat danger">
+        <div class="rstat-label">Critical Risks</div>
+        <div class="rstat-num">${fmtNum(scan.critical_count || 0)}</div>
+        <div class="rstat-trend action">${(scan.critical_count || 0) > 0 ? "⚠ Action Required" : "No action needed"}</div>
+      </div>`;
 
     renderCharts(scan);
 
-    el.detail_summary.innerHTML = `<h4>Executive Summary</h4>${esc(scan.summary || "No summary available.")}`;
+    el.detail_summary.innerHTML = `<h4>Executive Summary</h4><p>${esc(scan.summary || "No summary available.")}</p>`;
 
-    el.impacts_title.textContent = `Impacts (${(scan.impacts || []).length})`;
-    renderImpacts(scan.impacts || []);
+    renderInventoryTable(scan.impacts || []);
   }
 
-  function dsCard(n, label, cls) {
-    return `<div class="ds-card ${cls}"><div class="ds-num">${n || 0}</div><div class="ds-lbl">${label}</div></div>`;
+  function fmtNum(n) {
+    return n >= 1000 ? n.toLocaleString() : String(n);
   }
 
+  /* ── Charts ──────────────────────────────────────────────────── */
   function renderCharts(scan) {
     if (sevChart) sevChart.destroy();
     if (catChart) catChart.destroy();
 
     const sevData = [scan.critical_count || 0, scan.high_count || 0, scan.medium_count || 0, scan.low_count || 0, scan.info_count || 0];
-    const sevLabels = ["Critical", "High", "Medium", "Low", "Info"];
+    const sevLabels = ["CRIT", "HIGH", "MED", "LOW", "INFO"];
     const sevColors = ["#DC2626", "#EA580C", "#CA8A04", "#16A34A", "#4F46E5"];
 
     sevChart = new Chart(document.getElementById("chart-severity"), {
-      type: "doughnut",
-      data: { labels: sevLabels, datasets: [{ data: sevData, backgroundColor: sevColors, borderWidth: 2, borderColor: "#FFFFFF", hoverOffset: 6 }] },
+      type: "bar",
+      data: {
+        labels: sevLabels,
+        datasets: [{
+          data: sevData,
+          backgroundColor: sevColors.map((c) => c + "30"),
+          borderColor: sevColors,
+          borderWidth: 1,
+          borderRadius: 4,
+          barPercentage: 0.55,
+        }],
+      },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: "right", labels: { color: "#4B5563", font: { size: 11, family: "Inter" }, padding: 12, usePointStyle: true, pointStyleWidth: 8 } },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: "#4B5563", font: { size: 11, weight: 600, family: "Inter" } } },
+          y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.05)" }, ticks: { color: "#9CA3AF", font: { size: 10 }, stepSize: 1 } },
         },
-        cutout: "65%",
       },
     });
 
     const impacts = scan.impacts || [];
     const catMap = {};
     impacts.forEach((imp) => { const c = imp.category || "Other"; catMap[c] = (catMap[c] || 0) + 1; });
-    const catLabels = Object.keys(catMap).sort((a, b) => catMap[b] - catMap[a]);
+    const catLabels = Object.keys(catMap).sort((a, b) => catMap[b] - catMap[a]).slice(0, 8);
     const catData = catLabels.map((c) => catMap[c]);
 
-    catChart = new Chart(document.getElementById("chart-category"), {
-      type: "bar",
+    const topCat = catLabels[0] || "—";
+    const topCatTag = document.getElementById("chart-cat-tag");
+    if (topCatTag) topCatTag.textContent = `Top: ${topCat}`;
+
+    const catCtx = document.getElementById("chart-category").getContext("2d");
+    const catGradient = catCtx.createLinearGradient(0, 0, 0, 200);
+    catGradient.addColorStop(0, "rgba(208,74,2,.18)");
+    catGradient.addColorStop(1, "rgba(208,74,2,.01)");
+
+    catChart = new Chart(catCtx, {
+      type: "line",
       data: {
         labels: catLabels,
-        datasets: [{ data: catData, backgroundColor: "rgba(208,74,2,.65)", borderRadius: 4, barThickness: 18 }],
+        datasets: [{
+          data: catData,
+          borderColor: "#D04A02",
+          backgroundColor: catGradient,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: "#D04A02",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        }],
       },
       options: {
-        indexAxis: "y", responsive: true, maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { color: "rgba(0,0,0,.05)" }, ticks: { color: "#9CA3AF", font: { size: 10 } } },
-          y: { grid: { display: false }, ticks: { color: "#4B5563", font: { size: 11, family: "Inter" } } },
+          x: { grid: { display: false }, ticks: { color: "#4B5563", font: { size: 10, family: "Inter" }, maxRotation: 30 } },
+          y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.05)" }, ticks: { color: "#9CA3AF", font: { size: 10 }, stepSize: 1 } },
         },
       },
     });
   }
 
-  function renderImpacts(impacts) {
+  /* ── Inventory table ─────────────────────────────────────────── */
+  function getFilteredImpacts(impacts) {
+    let list = [...impacts];
     const sevFilter = el.filter_severity.value;
     const unresolvedOnly = el.filter_unresolved.checked;
+    const search = (el.inv_search.value || "").toLowerCase().trim();
+    if (sevFilter) list = list.filter((i) => i.severity === sevFilter);
+    if (unresolvedOnly) list = list.filter((i) => !i.is_resolved);
+    if (search) list = list.filter((i) =>
+      (i.release_change || "").toLowerCase().includes(search) ||
+      (i.category || "").toLowerCase().includes(search) ||
+      (i.description || "").toLowerCase().includes(search) ||
+      (i.affected_components || []).some((c) => c.toLowerCase().includes(search))
+    );
+    return list;
+  }
 
-    let filtered = impacts;
-    if (sevFilter) filtered = filtered.filter((i) => i.severity === sevFilter);
-    if (unresolvedOnly) filtered = filtered.filter((i) => !i.is_resolved);
+  function renderInventoryTable(impacts) {
+    const filtered = getFilteredImpacts(impacts);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / INV_PER_PAGE));
+    if (invPage > totalPages) invPage = totalPages;
+    const start = (invPage - 1) * INV_PER_PAGE;
+    const pageItems = filtered.slice(start, start + INV_PER_PAGE);
 
     if (filtered.length === 0) {
-      el.detail_impacts.innerHTML = '<div class="empty-state"><p>No impacts match your filter.</p></div>';
+      el.inv_tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3)">No impacts match your filter.</td></tr>`;
+      el.inv_footer.innerHTML = "";
       return;
     }
 
-    el.detail_impacts.innerHTML = filtered.map((imp) => {
-      const sev = (imp.severity || "info").toLowerCase();
-      const comps = (imp.affected_components || []).map((c) => `<span class="comp-tag">${esc(c)}</span>`).join("");
+    el.inv_tbody.innerHTML = pageItems.map((imp, idx) => {
+      const sev = (imp.severity || "Info").toLowerCase();
+      const sevLabel = (imp.severity || "Info").toUpperCase();
       const resolved = imp.is_resolved;
-      return `<div class="impact-item${resolved ? " resolved-item" : ""}" data-impact-id="${imp.id}">
-        <div class="impact-head">
-          <span class="sev-badge ${sev}">${sev}</span>
-          <span class="impact-title">${esc(imp.release_change || "Untitled")}</span>
-          <span class="impact-cat">${esc(imp.category || "")}</span>
-          <svg class="impact-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="impact-body">
-          <div class="ib-section"><div class="ib-label">Description</div><div class="ib-text">${esc(imp.description || "—")}</div></div>
-          ${comps ? `<div class="ib-section"><div class="ib-label">Affected Components</div><div class="comp-tags">${comps}</div></div>` : ""}
-          ${imp.remediation ? `<div class="ib-section"><div class="ib-label">Remediation Steps</div><div class="remed-box">${esc(imp.remediation)}</div></div>` : ""}
-          <div class="impact-actions">
-            <button class="btn btn-sm btn-autofix" disabled title="Coming soon">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/></svg>
-              Auto Fix with Agent
-            </button>
-            <button class="btn btn-sm btn-resolve${resolved ? " resolved" : ""}" data-impact-id="${imp.id}" data-resolved="${resolved ? 1 : 0}">
-              ${resolved ? "✓ Resolved" : "Mark as Resolved"}
-            </button>
-          </div>
-        </div>
-      </div>`;
+      const globalIdx = start + idx + 1;
+      const comps = (imp.affected_components || []);
+      const compsHtml = comps.map((c) => `<span class="comp-tag">${esc(c)}</span>`).join("");
+
+      return `
+        <tr class="inv-row${resolved ? " resolved-row" : ""}" data-idx="${globalIdx}">
+          <td><span class="inv-id">IMP-${String(imp.id).padStart(4, "0")}</span></td>
+          <td><span class="inv-name">${esc(imp.release_change || "Untitled")}</span></td>
+          <td><span class="sev-text ${sev}">${sevLabel}</span></td>
+          <td>
+            <div class="status-indicator">
+              <div class="status-bar"><div class="status-bar-fill ${resolved ? "resolved" : "open"}"></div></div>
+              <span class="status-label ${resolved ? "resolved" : "open"}">${resolved ? "Resolved" : "Open"}</span>
+            </div>
+          </td>
+          <td>${esc(imp.category || "—")}</td>
+          <td><button class="inv-details-link" data-imp-id="${imp.id}">Details</button></td>
+        </tr>
+        <tr class="inv-detail-row" id="inv-detail-${imp.id}">
+          <td colspan="6">
+            <div class="inv-detail-inner">
+              <div class="inv-detail-grid">
+                <div class="inv-detail-section">
+                  <h5>Detailed Analysis</h5>
+                  <p>${esc(imp.description || "No details available.")}</p>
+                  ${compsHtml ? `<div style="margin-top:.6rem"><h5>Affected Components</h5><div class="inv-detail-components">${compsHtml}</div></div>` : ""}
+                </div>
+                <div class="inv-detail-section">
+                  <h5>Remediation Steps</h5>
+                  <div class="inv-detail-remed">${formatRemediation(imp.remediation)}</div>
+                </div>
+              </div>
+              <div class="inv-detail-actions">
+                <button class="btn btn-autofix-primary" disabled title="Coming soon — AI-powered auto-remediation">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="12" cy="14" r="2"/></svg>
+                  Auto Fix with Agent
+                </button>
+                <button class="btn btn-sm btn-resolve${resolved ? " resolved" : ""}" data-impact-id="${imp.id}" data-resolved="${resolved ? 1 : 0}">
+                  ${resolved ? "✓ Resolved" : "Mark as Resolved"}
+                </button>
+              </div>
+            </div>
+          </td>
+        </tr>`;
     }).join("");
 
-    $$(".impact-head", el.detail_impacts).forEach((h) => {
-      h.addEventListener("click", () => h.closest(".impact-item").classList.toggle("open"));
+    // Footer pagination
+    const showStart = start + 1;
+    const showEnd = Math.min(start + INV_PER_PAGE, filtered.length);
+    let paginationBtns = "";
+    if (totalPages > 1) {
+      paginationBtns += `<button class="inv-page-btn" data-p="prev" ${invPage <= 1 ? "disabled" : ""}>Prev</button>`;
+      for (let p = 1; p <= totalPages; p++) {
+        paginationBtns += `<button class="inv-page-btn${p === invPage ? " active" : ""}" data-p="${p}">${p}</button>`;
+      }
+      paginationBtns += `<button class="inv-page-btn" data-p="next" ${invPage >= totalPages ? "disabled" : ""}>Next</button>`;
+    }
+    el.inv_footer.innerHTML = `
+      <span class="inv-page-info">Showing ${showStart} to ${showEnd} of ${filtered.length} entries</span>
+      <div class="inv-page-btns">${paginationBtns}</div>`;
+
+    bindInventoryEvents(impacts, totalPages);
+  }
+
+  function bindInventoryEvents(impacts, totalPages) {
+    const tbody = el.inv_tbody;
+
+    // Details toggle
+    $$(".inv-details-link", tbody).forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.impId;
+        const detailRow = document.getElementById(`inv-detail-${id}`);
+        const isOpen = detailRow.classList.contains("open");
+        $$(".inv-detail-row", tbody).forEach((r) => r.classList.remove("open"));
+        if (!isOpen) detailRow.classList.add("open");
+      });
     });
 
-    $$(".btn-resolve", el.detail_impacts).forEach((btn) => {
-      btn.addEventListener("click", async () => {
+    // Row click also toggles
+    $$(".inv-row", tbody).forEach((row) => {
+      row.addEventListener("click", () => {
+        const link = $(".inv-details-link", row);
+        if (link) link.click();
+      });
+    });
+
+    // Resolve buttons
+    $$(".btn-resolve", tbody).forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
         const id = btn.dataset.impactId;
         const isResolved = btn.dataset.resolved === "1";
         try {
           await api("POST", `/api/impacts/${id}/${isResolved ? "unresolve" : "resolve"}`);
           const scan = await api("GET", `/api/scans/${detailData.id}`);
           detailData = scan;
-          renderImpacts(scan.impacts || []);
+          renderDetail(scan);
           toast(isResolved ? "Marked as unresolved" : "Marked as resolved", "success");
         } catch (e) { toast(e.message, "error"); }
+      });
+    });
+
+    // Pagination
+    $$(".inv-page-btn", el.inv_footer).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const p = btn.dataset.p;
+        if (p === "prev") invPage = Math.max(1, invPage - 1);
+        else if (p === "next") invPage = Math.min(totalPages, invPage + 1);
+        else invPage = parseInt(p);
+        renderInventoryTable(impacts);
       });
     });
   }
@@ -450,7 +581,6 @@
       }
       el.s_model.value = s.model;
     } catch {}
-
     try {
       const o = await api("GET", "/api/orgs");
       if (o.orgs.length === 0) {
@@ -458,34 +588,25 @@
       } else {
         el.s_org_list.innerHTML = o.orgs.map((org) => `
           <div class="org-row">
-            <div class="org-row-info">
-              <strong>${esc(org.alias)}</strong>
-              <span>${esc(org.username || "")} · ${esc(org.instance_url || "")}</span>
-            </div>
+            <div class="org-row-info"><strong>${esc(org.alias)}</strong><span>${esc(org.username || "")} · ${esc(org.instance_url || "")}</span></div>
             <button class="btn btn-ghost btn-sm btn-danger-text btn-remove-org" data-id="${org.id}">Remove</button>
           </div>`).join("");
         $$(".btn-remove-org", el.s_org_list).forEach((btn) => {
           btn.addEventListener("click", async () => {
-            try {
-              await api("DELETE", `/api/orgs/${btn.dataset.id}`);
-              toast("Org removed", "info");
-              loadSettings();
-              refreshTopbar();
-            } catch (e) { toast(e.message, "error"); }
+            try { await api("DELETE", `/api/orgs/${btn.dataset.id}`); toast("Org removed", "info"); loadSettings(); refreshTopbar(); } catch (e) { toast(e.message, "error"); }
           });
         });
       }
     } catch {}
   }
 
-  /* ── Topbar / Sidebar status refresh ─────────────────────────── */
+  /* ── Topbar / Sidebar status ─────────────────────────────────── */
   async function refreshTopbar() {
     try {
       const s = await api("GET", "/api/settings");
       const modelLabel = { "gemini-3.1-pro-preview": "Gemini 3.1 Pro", "gemini-3-pro-preview": "Gemini 3 Pro", "gemini-2.5-pro": "Gemini 2.5 Pro" }[s.model] || s.model;
       $("span", el.tb_model).textContent = s.api_key_set ? modelLabel : "No API Key";
     } catch {}
-
     try {
       const o = await api("GET", "/api/orgs");
       const dot = $(".conn-dot", el.sidebar_status);
@@ -509,36 +630,335 @@
     } catch {}
   }
 
-  /* ── Export ──────────────────────────────────────────────────── */
-  window.__exportReport = function () {
-    const panel = document.getElementById("page-scan-detail");
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Impact Report — PwC Release Agent</title>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-      <style>body{background:#F4F5F7;color:#1A1A2E;font-family:Inter,sans-serif;padding:2rem;max-width:1000px;margin:0 auto}
-      .hidden{display:block!important}.page{display:block!important}.btn-back,.impact-actions,.impact-filters,.topbar,.sidebar,.btn{display:none!important}
-      .detail-charts{display:none}.impact-item{border:1px solid #E5E7EB;border-radius:8px;margin-bottom:8px;padding:12px;background:#fff}
-      .impact-body{display:block!important;border-top:none!important}.impact-head{cursor:default}
-      .sev-badge{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
-      .sev-badge.critical{background:rgba(220,38,38,.08);color:#DC2626}
-      .sev-badge.high{background:rgba(234,88,12,.08);color:#EA580C}
-      .sev-badge.medium{background:rgba(202,138,4,.08);color:#CA8A04}
-      .sev-badge.low{background:rgba(22,163,74,.08);color:#16A34A}
-      .sev-badge.info{background:rgba(79,70,229,.08);color:#4F46E5}
-      .comp-tag{background:rgba(208,74,2,.06);color:#D04A02;padding:2px 6px;border-radius:4px;font-size:11px;margin:2px;border:1px solid rgba(208,74,2,.1)}
-      .remed-box{background:#F7F8FA;border:1px solid #E5E7EB;border-left:3px solid #D04A02;border-radius:6px;padding:10px;font-size:13px;white-space:pre-wrap;color:#4B5563}
-      h4{font-size:13px;font-weight:700;margin-bottom:8px;color:#1A1A2E}
-      </style></head><body>${panel.innerHTML}</body></html>`;
-    const blob = new Blob([html], { type: "text/html" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `impact-report-${detailData?.id || "export"}.html`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast("Report exported!", "success");
+  /* ── Export PDF ─────────────────────────────────────────────── */
+  const SEV_COLORS = { Critical: "#DC2626", High: "#EA580C", Medium: "#CA8A04", Low: "#16A34A", Info: "#4F46E5" };
+  const PW = { orange: [208, 74, 2], black: [26, 26, 46], gray: [75, 85, 99], light: [156, 163, 175], bg: [244, 245, 247], white: [255, 255, 255], line: [229, 231, 235] };
+
+  function sevColor(sev) { return SEV_COLORS[sev] || "#9CA3AF"; }
+  function hexToRgb(hex) { const m = hex.replace("#", "").match(/.{2}/g); return m ? m.map((x) => parseInt(x, 16)) : [0, 0, 0]; }
+
+  window.__exportReport = async function () {
+    if (!detailData) return;
+    toast("Generating PDF report...", "info");
+    try {
+      const scan = detailData;
+      const impacts = scan.impacts || [];
+      const date = scan.started_at ? new Date(scan.started_at + "Z").toLocaleString() : "N/A";
+      const totalImpacts = impacts.length;
+      const resolved = impacts.filter((i) => i.is_resolved).length;
+      const inProgress = totalImpacts - resolved;
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const W = pdf.internal.pageSize.getWidth();
+      const H = pdf.internal.pageSize.getHeight();
+      const margin = 18;
+      const usable = W - margin * 2;
+      let y = 0;
+
+      function addFooter() {
+        pdf.setDrawColor(...PW.line);
+        pdf.line(margin, H - 14, W - margin, H - 14);
+        pdf.setFontSize(7); pdf.setTextColor(...PW.light);
+        pdf.text("\u00A9 2026 PwC. All rights reserved. PwC refers to the PwC network and/or one or more of its member firms.", W / 2, H - 9, { align: "center" });
+        pdf.text(`Page ${pdf.getNumberOfPages()}`, W - margin, H - 9, { align: "right" });
+      }
+
+      function checkPage(need) {
+        if (y + need > H - 20) { addFooter(); pdf.addPage(); y = 22; return true; }
+        return false;
+      }
+
+      /* ── PAGE 1 : Cover ─────────────────────────────────────── */
+      pdf.setFillColor(...PW.orange);
+      pdf.rect(0, 0, W, 6, "F");
+
+      y = 38;
+      pdf.setFillColor(...PW.orange);
+      pdf.rect(margin, y, 3, 20, "F");
+      pdf.setFont("helvetica", "bold"); pdf.setFontSize(28); pdf.setTextColor(...PW.black);
+      pdf.text("Impact Summary", margin + 8, y + 9);
+      pdf.setFont("helvetica", "normal"); pdf.setFontSize(11); pdf.setTextColor(...PW.gray);
+      pdf.text("Release Impact Analysis Report", margin + 8, y + 17);
+
+      y += 32;
+      pdf.setFontSize(9); pdf.setTextColor(...PW.light);
+      pdf.text(`Release:  ${scan.release_name}`, margin, y);
+      pdf.text(`Org:  ${scan.org_alias}`, margin, y + 5);
+      pdf.text(`Generated:  ${date}`, margin, y + 10);
+      pdf.text(`Model:  ${scan.model || "Gemini"}`, margin, y + 15);
+
+      /* ── stat cards ── */
+      y += 28;
+      const cardW = (usable - 9) / 4;
+      const cardH = 22;
+      const stats = [
+        { label: "Total Components", value: String(scan.total_components || 0), color: PW.orange },
+        { label: "Remediated", value: String(resolved), color: [22, 163, 106] },
+        { label: "In Progress", value: String(inProgress), color: [202, 138, 4] },
+        { label: "Critical Risks", value: String(scan.critical_count || 0), color: [220, 38, 38] },
+      ];
+      stats.forEach((st, i) => {
+        const cx = margin + i * (cardW + 3);
+        pdf.setFillColor(250, 250, 252);
+        pdf.roundedRect(cx, y, cardW, cardH, 2, 2, "F");
+        pdf.setDrawColor(...PW.line); pdf.roundedRect(cx, y, cardW, cardH, 2, 2, "S");
+        pdf.setFontSize(7); pdf.setTextColor(...PW.light); pdf.setFont("helvetica", "normal");
+        pdf.text(st.label.toUpperCase(), cx + 4, y + 6);
+        pdf.setFontSize(16); pdf.setTextColor(...st.color); pdf.setFont("helvetica", "bold");
+        pdf.text(st.value, cx + 4, y + 16);
+      });
+
+      /* ── Charts (capture from rendered canvases) ── */
+      y += cardH + 10;
+      const chartSevEl = document.getElementById("chart-severity");
+      const chartCatEl = document.getElementById("chart-category");
+      if (chartSevEl && chartCatEl) {
+        const halfW = (usable - 4) / 2;
+        const chartH = 42;
+
+        pdf.setFillColor(250, 250, 252);
+        pdf.roundedRect(margin, y, halfW, chartH + 10, 2, 2, "F");
+        pdf.setDrawColor(...PW.line); pdf.roundedRect(margin, y, halfW, chartH + 10, 2, 2, "S");
+        pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+        pdf.text("Impact by Severity", margin + 4, y + 6);
+        const sevImg = chartSevEl.toDataURL("image/png", 1.0);
+        pdf.addImage(sevImg, "PNG", margin + 2, y + 9, halfW - 4, chartH);
+
+        const catX = margin + halfW + 4;
+        pdf.setFillColor(250, 250, 252);
+        pdf.roundedRect(catX, y, halfW, chartH + 10, 2, 2, "F");
+        pdf.setDrawColor(...PW.line); pdf.roundedRect(catX, y, halfW, chartH + 10, 2, 2, "S");
+        pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+        pdf.text("Category Breakdown", catX + 4, y + 6);
+        const catImg = chartCatEl.toDataURL("image/png", 1.0);
+        pdf.addImage(catImg, "PNG", catX + 2, y + 9, halfW - 4, chartH);
+
+        y += chartH + 14;
+      }
+
+      /* ── Executive Summary ── */
+      y += 4;
+      pdf.setFillColor(...PW.orange);
+      pdf.rect(margin, y, 2.5, 6, "F");
+      pdf.setFontSize(11); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+      pdf.text("Executive Summary", margin + 6, y + 5);
+      y += 10;
+      pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(...PW.gray);
+      const summaryLines = pdf.splitTextToSize(scan.summary || "No summary available.", usable - 4);
+      summaryLines.forEach((line) => {
+        checkPage(5);
+        pdf.text(line, margin + 2, y);
+        y += 4;
+      });
+
+      addFooter();
+
+      /* ── PAGE 2+ : Impacts Table ────────────────────────────── */
+      pdf.addPage();
+      y = 18;
+      pdf.setFillColor(...PW.orange);
+      pdf.rect(0, 0, W, 4, "F");
+
+      pdf.setFillColor(...PW.orange);
+      pdf.rect(margin, y, 2.5, 6, "F");
+      pdf.setFontSize(13); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+      pdf.text("Detailed Component Inventory", margin + 6, y + 5);
+      y += 12;
+
+      const severityOrder = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+      const sorted = [...impacts].sort((a, b) => (severityOrder[a.severity] ?? 5) - (severityOrder[b.severity] ?? 5));
+
+      pdf.autoTable({
+        startY: y,
+        head: [["#", "Component / Change", "Severity", "Category", "Status"]],
+        body: sorted.map((imp, i) => [
+          `IMP-${String(imp.id).padStart(4, "0")}`,
+          (imp.release_change || "Untitled").substring(0, 55),
+          (imp.severity || "Info").toUpperCase(),
+          imp.category || "—",
+          imp.is_resolved ? "Resolved" : "Open",
+        ]),
+        theme: "grid",
+        styles: { fontSize: 7.5, cellPadding: 2.5, lineColor: [229, 231, 235], lineWidth: 0.25, textColor: PW.gray, font: "helvetica" },
+        headStyles: { fillColor: PW.orange, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5, halign: "left" },
+        columnStyles: {
+          0: { cellWidth: 18, fontStyle: "bold", textColor: PW.black },
+          1: { cellWidth: 62 },
+          2: { cellWidth: 18, halign: "center" },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 18, halign: "center" },
+        },
+        alternateRowStyles: { fillColor: [250, 250, 252] },
+        margin: { left: margin, right: margin },
+        didParseCell: function (data) {
+          if (data.section === "body" && data.column.index === 2) {
+            const sev = data.cell.raw;
+            const cmap = { CRITICAL: [220, 38, 38], HIGH: [234, 88, 12], MEDIUM: [202, 138, 4], LOW: [22, 163, 106], INFO: [79, 70, 229] };
+            data.cell.styles.textColor = cmap[sev] || PW.gray;
+            data.cell.styles.fontStyle = "bold";
+          }
+          if (data.section === "body" && data.column.index === 4) {
+            data.cell.styles.textColor = data.cell.raw === "Resolved" ? [22, 163, 106] : [234, 88, 12];
+            data.cell.styles.fontStyle = "bold";
+          }
+        },
+        didDrawPage: function () { addFooter(); pdf.setFillColor(...PW.orange); pdf.rect(0, 0, W, 4, "F"); },
+      });
+
+      /* ── Detailed impact pages ──────────────────────────────── */
+      sorted.forEach((imp, idx) => {
+        pdf.addPage();
+        let iy = 18;
+        pdf.setFillColor(...PW.orange); pdf.rect(0, 0, W, 4, "F");
+
+        const impId = `IMP-${String(imp.id).padStart(4, "0")}`;
+        const sev = (imp.severity || "Info").toUpperCase();
+        const sevRgb = hexToRgb(sevColor(imp.severity));
+
+        pdf.setFillColor(...sevRgb); pdf.roundedRect(margin, iy, 20, 6, 1, 1, "F");
+        pdf.setFontSize(7); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.white);
+        pdf.text(sev, margin + 10, iy + 4.2, { align: "center" });
+
+        pdf.setFontSize(7); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...PW.light);
+        pdf.text(impId, margin + 23, iy + 4.2);
+
+        pdf.setFontSize(7); pdf.setTextColor(imp.is_resolved ? [22, 163, 106] : [234, 88, 12]); pdf.setFont("helvetica", "bold");
+        pdf.text(imp.is_resolved ? "\u2713 RESOLVED" : "\u25CF OPEN", W - margin, iy + 4.2, { align: "right" });
+
+        iy += 12;
+        pdf.setFontSize(12); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+        const titleLines = pdf.splitTextToSize(imp.release_change || "Untitled", usable);
+        titleLines.forEach((l) => { pdf.text(l, margin, iy); iy += 5.5; });
+
+        if (imp.category) {
+          pdf.setFontSize(8); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...PW.light);
+          pdf.text(`Category: ${imp.category}`, margin, iy); iy += 5;
+        }
+
+        /* Analysis */
+        iy += 3;
+        pdf.setFillColor(...PW.orange); pdf.rect(margin, iy, 2, 5, "F");
+        pdf.setFontSize(9); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+        pdf.text("Detailed Analysis", margin + 5, iy + 4);
+        iy += 9;
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(...PW.gray);
+        const descLines = pdf.splitTextToSize(imp.description || "No details available.", usable - 4);
+        descLines.forEach((l) => { checkPage(5); pdf.text(l, margin + 2, iy); iy += 4; });
+
+        /* Affected components */
+        const comps = imp.affected_components || [];
+        if (comps.length) {
+          iy += 4; checkPage(14);
+          pdf.setFillColor(...PW.orange); pdf.rect(margin, iy, 2, 5, "F");
+          pdf.setFontSize(9); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+          pdf.text("Affected Components", margin + 5, iy + 4);
+          iy += 9;
+          let cx = margin + 2;
+          comps.forEach((c) => {
+            const tw = pdf.getStringUnitWidth(c) * 7.5 / pdf.internal.scaleFactor + 6;
+            if (cx + tw > W - margin) { cx = margin + 2; iy += 6; checkPage(8); }
+            pdf.setFillColor(255, 244, 237); pdf.setDrawColor(208, 74, 2);
+            pdf.roundedRect(cx, iy - 2.5, tw, 5.5, 1.2, 1.2, "FD");
+            pdf.setFontSize(7.5); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...PW.orange);
+            pdf.text(c, cx + 3, iy + 1);
+            cx += tw + 2;
+          });
+          iy += 8;
+        }
+
+        /* Remediation steps */
+        iy += 4; checkPage(14);
+        pdf.setFillColor(...PW.orange); pdf.rect(margin, iy, 2, 5, "F");
+        pdf.setFontSize(9); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.black);
+        pdf.text("Remediation Steps", margin + 5, iy + 4);
+        iy += 10;
+
+        const remedSteps = parseRemedSteps(imp.remediation || "");
+        if (remedSteps.length === 0) {
+          pdf.setFont("helvetica", "italic"); pdf.setFontSize(8.5); pdf.setTextColor(...PW.light);
+          pdf.text("No remediation steps provided.", margin + 2, iy); iy += 5;
+        } else {
+          remedSteps.forEach((step, si) => {
+            checkPage(12);
+            pdf.setFillColor(...PW.orange);
+            pdf.circle(margin + 4, iy + 0.8, 2.5, "F");
+            pdf.setFontSize(7); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...PW.white);
+            pdf.text(String(si + 1), margin + 4, iy + 1.5, { align: "center" });
+
+            pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(...PW.gray);
+            const stepLines = pdf.splitTextToSize(step, usable - 14);
+            stepLines.forEach((l, li) => {
+              pdf.text(l, margin + 10, iy + 1.5);
+              iy += 4;
+            });
+            iy += 2;
+          });
+        }
+
+        addFooter();
+      });
+
+      const filename = `Impact-Report-${scan.release_name.replace(/[^a-zA-Z0-9]/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      pdf.save(filename);
+      toast("PDF report downloaded!", "success");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast("Failed to generate PDF: " + err.message, "error");
+    }
   };
+
+  function parseRemedSteps(raw) {
+    if (!raw) return [];
+    const lines = raw.split(/\n/).map((l) => l.trim()).filter(Boolean);
+    const stepPattern = /^(?:\d+[\.\)\:]|Step\s+\d+|[-•])\s*/i;
+    const steps = [];
+    let current = "";
+    for (const line of lines) {
+      if (stepPattern.test(line)) {
+        if (current) steps.push(current);
+        current = line.replace(stepPattern, "").trim();
+      } else if (current) {
+        current += " " + line;
+      } else {
+        current = line;
+      }
+    }
+    if (current) steps.push(current);
+    if (steps.length <= 1) {
+      const fallback = raw.split(/\d+[\.\)]\s*/).filter(Boolean).map((s) => s.trim()).filter(Boolean);
+      if (fallback.length > 1) return fallback;
+    }
+    return steps.length > 0 ? steps : [raw];
+  }
 
   /* ── Utility ─────────────────────────────────────────────────── */
   function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+
+  function formatRemediation(raw) {
+    if (!raw) return '<span style="color:var(--text-3)">No remediation steps provided.</span>';
+    const lines = raw.split(/\n/).map((l) => l.trim()).filter(Boolean);
+    const stepPattern = /^(?:\d+[\.\)\:]|Step\s+\d+|[-•])\s*/i;
+    const steps = [];
+    let current = "";
+    for (const line of lines) {
+      if (stepPattern.test(line)) {
+        if (current) steps.push(current);
+        current = line.replace(stepPattern, "").trim();
+      } else if (current) {
+        current += " " + line;
+      } else {
+        current = line;
+      }
+    }
+    if (current) steps.push(current);
+    if (steps.length <= 1) {
+      const fallback = raw.split(/\d+[\.\)]\s*/).filter(Boolean).map((s) => s.trim()).filter(Boolean);
+      if (fallback.length > 1) return '<ol class="remed-list">' + fallback.map((s) => `<li>${esc(s)}</li>`).join("") + "</ol>";
+      return `<p>${esc(raw)}</p>`;
+    }
+    return '<ol class="remed-list">' + steps.map((s) => `<li>${esc(s)}</li>`).join("") + "</ol>";
+  }
 
   /* ── Event bindings ──────────────────────────────────────────── */
   function bindEvents() {
@@ -552,11 +972,20 @@
       el.start_scan_btn.disabled = !el.scan_release_select.value;
     });
     el.start_scan_btn.addEventListener("click", startAnalysis);
-
     el.detail_back_btn.addEventListener("click", () => navigate("scans"));
+    el.export_report_btn.addEventListener("click", () => window.__exportReport());
 
-    el.filter_severity.addEventListener("change", () => { if (detailData) renderImpacts(detailData.impacts || []); });
-    el.filter_unresolved.addEventListener("change", () => { if (detailData) renderImpacts(detailData.impacts || []); });
+    // Inventory filters — debounced
+    let filterTimer;
+    const applyFilters = () => {
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(() => {
+        if (detailData) { invPage = 1; renderInventoryTable(detailData.impacts || []); }
+      }, 200);
+    };
+    el.filter_severity.addEventListener("change", applyFilters);
+    el.filter_unresolved.addEventListener("change", applyFilters);
+    el.inv_search.addEventListener("input", applyFilters);
 
     el.s_save_key_btn.addEventListener("click", async () => {
       const key = el.s_api_key.value.trim();
@@ -567,27 +996,17 @@
         await api("POST", "/api/settings/apikey", { api_key: key, model: el.s_model.value });
         toast("API key saved", "success");
         el.s_api_key.value = "";
-        loadSettings();
-        refreshTopbar();
+        loadSettings(); refreshTopbar();
       } catch (e) { toast(e.message, "error"); }
       finally { el.s_save_key_btn.disabled = false; el.s_save_key_btn.textContent = "Save Key"; }
     });
 
     el.s_remove_key_btn.addEventListener("click", async () => {
-      try {
-        await api("DELETE", "/api/settings/apikey");
-        toast("API key removed", "info");
-        loadSettings();
-        refreshTopbar();
-      } catch (e) { toast(e.message, "error"); }
+      try { await api("DELETE", "/api/settings/apikey"); toast("API key removed", "info"); loadSettings(); refreshTopbar(); } catch (e) { toast(e.message, "error"); }
     });
 
     el.s_model.addEventListener("change", async () => {
-      try {
-        await api("PUT", "/api/settings/model", { model: el.s_model.value });
-        toast("Model updated", "success");
-        refreshTopbar();
-      } catch (e) { toast(e.message, "error"); }
+      try { await api("PUT", "/api/settings/model", { model: el.s_model.value }); toast("Model updated", "success"); refreshTopbar(); } catch (e) { toast(e.message, "error"); }
     });
 
     el.s_connect_btn.addEventListener("click", async () => {
@@ -598,9 +1017,7 @@
         el.s_connect_btn.innerHTML = '<span class="spinner"></span> Connecting…';
         toast("Opening Salesforce login in your browser…", "info");
         await api("POST", "/api/orgs/connect", { alias, instance_url: "https://login.salesforce.com", sandbox });
-        toast("Org connected!", "success");
-        loadSettings();
-        refreshTopbar();
+        toast("Org connected!", "success"); loadSettings(); refreshTopbar();
       } catch (e) { toast("Connection failed: " + e.message, "error"); }
       finally { el.s_connect_btn.disabled = false; el.s_connect_btn.textContent = "Connect New Org"; }
     });
