@@ -246,13 +246,32 @@ async def get_dashboard_stats() -> dict:
             cur = await db.execute(sql)
             return (await cur.fetchone())[0]
 
+        async def _sum(sql: str) -> int:
+            cur = await db.execute(sql)
+            val = (await cur.fetchone())[0]
+            return val or 0
+
+        total_impacts = await _count("SELECT COUNT(*) FROM impacts")
+        resolved = await _count("SELECT COUNT(*) FROM impacts WHERE is_resolved=1")
+        total_components = await _sum(
+            "SELECT COALESCE(SUM(total_components),0) FROM scans WHERE status='completed'"
+        )
+        total_changes = await _sum(
+            "SELECT COALESCE(SUM(total_changes),0) FROM scans WHERE status='completed'"
+        )
+
         return {
             "total_scans": await _count("SELECT COUNT(*) FROM scans"),
             "completed_scans": await _count("SELECT COUNT(*) FROM scans WHERE status='completed'"),
-            "total_impacts": await _count("SELECT COUNT(*) FROM impacts"),
-            "resolved_impacts": await _count("SELECT COUNT(*) FROM impacts WHERE is_resolved=1"),
+            "total_impacts": total_impacts,
+            "resolved_impacts": resolved,
             "critical_unresolved": await _count(
                 "SELECT COUNT(*) FROM impacts WHERE severity='Critical' AND is_resolved=0"
             ),
+            "high_unresolved": await _count(
+                "SELECT COUNT(*) FROM impacts WHERE severity='High' AND is_resolved=0"
+            ),
             "connected_orgs": await _count("SELECT COUNT(*) FROM orgs WHERE is_active=1"),
+            "total_components_scanned": total_components,
+            "total_changes_analysed": total_changes,
         }

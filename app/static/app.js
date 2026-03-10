@@ -16,7 +16,7 @@
   const el = {};
   function cacheEls() {
     [
-      "page-title", "tb-model", "tb-org", "sidebar-status",
+      "tb-model", "tb-org", "sidebar-status",
       "dash-stats", "dash-recent-scans", "dash-new-scan-btn",
       "qa-new-scan", "qa-connect-org", "qa-settings",
       "scans-list", "scans-new-btn",
@@ -25,6 +25,7 @@
       "detail-back-btn", "detail-stats", "detail-subtitle",
       "detail-summary", "inv-tbody", "inv-footer", "inv-search",
       "filter-severity", "filter-unresolved", "export-report-btn",
+      "detail-progress-wrap", "detail-report-wrap",
       "s-api-key", "s-model", "s-api-hint", "s-save-key-btn",
       "s-remove-key-btn", "s-org-list", "s-org-alias", "s-sandbox", "s-connect-btn",
       "toast-container",
@@ -69,8 +70,27 @@
     const target = pages[page];
     if (target) target.classList.add("active");
 
-    const titles = { dashboard: "Dashboard", scans: "Scans & Reports", "new-scan": "New Scan", "scan-detail": "Impact Summary", settings: "Settings" };
-    el.page_title.textContent = titles[page] || page;
+    const crumbs = {
+      dashboard: [["Dashboard"]],
+      scans: [["Dashboard", "dashboard"], ["Analysis & Reports"]],
+      "new-scan": [["Dashboard", "dashboard"], ["Analysis", "scans"], ["New Analysis"]],
+      "scan-detail": [["Dashboard", "dashboard"], ["Analysis", "scans"], ["Impact Report"]],
+      settings: [["Configuration"]],
+    };
+    const bc = document.getElementById("topbar-breadcrumb");
+    if (bc) {
+      const parts = crumbs[page] || [[page]];
+      bc.innerHTML = parts.map((p, i) => {
+        const isLast = i === parts.length - 1;
+        const sep = i > 0 ? '<span class="tb-crumb-sep">/</span>' : "";
+        if (isLast) return `${sep}<span class="tb-crumb tb-crumb-current">${p[0]}</span>`;
+        return `${sep}<span class="tb-crumb tb-crumb-root tb-crumb-link" data-nav="${p[1]}">${p[0]}</span>`;
+      }).join("");
+      $$(".tb-crumb-link", bc).forEach((el) => {
+        el.style.cursor = "pointer";
+        el.addEventListener("click", () => navigate(el.dataset.nav));
+      });
+    }
 
     if (page === "dashboard") loadDashboard();
     if (page === "scans") loadScans();
@@ -84,17 +104,49 @@
     try {
       const d = await api("GET", "/api/dashboard");
       const s = d.stats;
+      const totalImpacts = s.total_impacts || 0;
+      const resolved = s.resolved_impacts || 0;
+      const resolveRate = totalImpacts > 0 ? Math.round((resolved / totalImpacts) * 100) : 0;
+      const hoursSaved = Math.round((s.completed_scans || 0) * 3.5 + (resolved) * 0.8);
+      const critOpen = s.critical_unresolved || 0;
+      const highOpen = s.high_unresolved || 0;
+
+      const avgImpactsPerScan = s.completed_scans > 0 ? Math.round(totalImpacts / s.completed_scans) : 0;
+      const releasesCovered = s.completed_scans || 0;
+
       el.dash_stats.innerHTML = [
-        statCard(s.total_scans, "Total Scans", "accent"),
-        statCard(s.completed_scans, "Completed", "success"),
-        statCard(s.total_impacts, "Total Impacts", "info"),
-        statCard(s.critical_unresolved, "Critical Open", "danger"),
-        statCard(s.resolved_impacts, "Resolved", "success"),
-        statCard(s.connected_orgs, "Connected Orgs", "accent"),
+        kpiCard({
+          icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+          value: `${hoursSaved}h`,
+          label: "Estimated Hours Saved",
+          sub: `~3.5h per analysis + 0.8h per remediation`,
+          theme: "orange",
+        }),
+        kpiCard({
+          icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+          value: fmtNum(totalImpacts),
+          label: "Impacts Identified",
+          sub: `Avg. ${avgImpactsPerScan} impacts per release analysis`,
+          theme: "blue",
+        }),
+        kpiCard({
+          icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
+          value: fmtNum(s.total_components_scanned || 0),
+          label: "Metadata Components Scanned",
+          sub: `Across ${s.connected_orgs || 0} connected org${(s.connected_orgs || 0) !== 1 ? "s" : ""}`,
+          theme: "green",
+        }),
+        kpiCard({
+          icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>`,
+          value: fmtNum(releasesCovered),
+          label: "Releases Analysed",
+          sub: `${fmtNum(s.total_changes_analysed || 0)} total release changes processed`,
+          theme: "slate",
+        }),
       ].join("");
 
       if (d.recent_scans.length === 0) {
-        el.dash_recent_scans.innerHTML = '<div class="empty-state"><p>No scans yet. Run your first analysis!</p></div>';
+        el.dash_recent_scans.innerHTML = '<div class="empty-state"><p>No analyses yet. Launch your first impact assessment.</p></div>';
       } else {
         el.dash_recent_scans.innerHTML = buildScanTable(d.recent_scans);
         bindScanTableClicks(el.dash_recent_scans);
@@ -102,8 +154,18 @@
     } catch (e) { toast("Failed to load dashboard: " + e.message, "error"); }
   }
 
-  function statCard(n, label, cls) {
-    return `<div class="stat-card ${cls}"><div class="stat-number">${n}</div><div class="stat-label">${label}</div></div>`;
+  function kpiCard({ icon, value, label, sub, theme, ring, pulse }) {
+    const ringHtml = ring != null
+      ? `<div class="kpi-ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(0,0,0,.06)" stroke-width="2.5"/><circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="${ring} ${100 - ring}" stroke-dashoffset="25" stroke-linecap="round"/></svg></div>`
+      : "";
+    return `<div class="kpi-card kpi-${theme}${pulse ? " kpi-pulse" : ""}">
+      <div class="kpi-icon-wrap">${icon}</div>
+      <div class="kpi-body">
+        <div class="kpi-value">${value}${ringHtml}</div>
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-sub">${sub}</div>
+      </div>
+    </div>`;
   }
 
   function buildScanTable(scans) {
@@ -296,8 +358,136 @@
       const scan = await api("GET", `/api/scans/${scanId}`);
       detailData = scan;
       invPage = 1;
-      renderDetail(scan);
+
+      const progressWrap = document.getElementById("detail-progress-wrap");
+      const reportWrap = document.getElementById("detail-report-wrap");
+
+      if (scan.status === "running") {
+        progressWrap.classList.remove("hidden");
+        reportWrap.classList.add("hidden");
+        document.getElementById("detail-progress-title").textContent =
+          `Analysing ${esc(scan.release_name)}`;
+        document.getElementById("detail-progress-sub").textContent =
+          `${esc(scan.org_alias)} — Scan started at ${scan.started_at ? new Date(scan.started_at + "Z").toLocaleTimeString() : "unknown"}`;
+        initDetailProgress(scan);
+      } else if (scan.status === "failed") {
+        progressWrap.classList.remove("hidden");
+        reportWrap.classList.add("hidden");
+        document.getElementById("detail-progress-title").textContent = "Analysis Failed";
+        document.getElementById("detail-progress-sub").textContent =
+          `${esc(scan.release_name)} · ${esc(scan.org_alias)} — The analysis encountered an error.`;
+        showDetailFailed();
+      } else {
+        progressWrap.classList.add("hidden");
+        reportWrap.classList.remove("hidden");
+        renderDetail(scan);
+      }
     } catch (e) { toast("Failed to load scan: " + e.message, "error"); }
+  }
+
+  function initDetailProgress(scan) {
+    const pipelineEl = document.getElementById("detail-pipeline");
+    const logEl = document.getElementById("detail-scan-log");
+    const fillEl = document.getElementById("detail-progress-fill");
+    const pctEl = document.getElementById("detail-progress-pct");
+
+    $$(".pipeline-step", pipelineEl).forEach((s) => { s.className = "pipeline-step"; $(".step-sub", s).textContent = ""; });
+    $$(".pipeline-connector", pipelineEl).forEach((c) => { c.className = "pipeline-connector"; });
+    fillEl.style.width = "0%";
+    pctEl.textContent = "0%";
+    logEl.innerHTML = "";
+
+    const addDetailLog = (text, level = "info") => {
+      const d = document.createElement("div");
+      d.className = `log-line ${level}`;
+      const ts = new Date().toLocaleTimeString();
+      d.innerHTML = `<span class="log-ts">[${ts}]</span> ${esc(text)}`;
+      logEl.appendChild(d);
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    const setDetailStep = (step, status, sub) => {
+      const steps = $$(".pipeline-step", pipelineEl);
+      const connectors = $$(".pipeline-connector", pipelineEl);
+      steps.forEach((s, i) => {
+        const n = i + 1;
+        s.classList.remove("active", "done", "error");
+        if (n < step) s.classList.add("done");
+        else if (n === step) s.classList.add(status === "error" ? "error" : "active");
+      });
+      connectors.forEach((c, i) => {
+        c.classList.remove("done", "active");
+        if (i + 1 < step) c.classList.add("done");
+        else if (i + 1 === step) c.classList.add("active");
+      });
+      if (sub && steps[step - 1]) $(".step-sub", steps[step - 1]).textContent = sub;
+    };
+
+    addDetailLog(`Monitoring analysis for ${scan.release_name}…`, "info");
+    setDetailStep(1, "active", "Waiting for updates…");
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      addDetailLog("Connected to analysis engine", "info");
+      const origHandler = ws.onmessage;
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (origHandler) origHandler(e);
+        handleDetailWs(msg, scan.id, setDetailStep, addDetailLog, fillEl, pctEl);
+      };
+    } else {
+      addDetailLog("Analysis is running in the background. Will refresh when complete.", "info");
+      pollScanStatus(scan.id);
+    }
+  }
+
+  function handleDetailWs(msg, scanId, setDetailStep, addDetailLog, fillEl, pctEl) {
+    switch (msg.type) {
+      case "progress": {
+        const { step, percent, message } = msg;
+        if (step) setDetailStep(step, "active", message);
+        fillEl.style.width = `${percent}%`;
+        pctEl.textContent = `${percent}%`;
+        addDetailLog(message, "info");
+        break;
+      }
+      case "complete":
+        setDetailStep(4, "done");
+        fillEl.style.width = "100%";
+        pctEl.textContent = "100%";
+        addDetailLog("Analysis complete! Loading report…", "success");
+        setTimeout(() => loadScanDetail(msg.scan_id || scanId), 1500);
+        break;
+      case "error":
+        addDetailLog(msg.message, "error");
+        break;
+    }
+  }
+
+  function showDetailFailed() {
+    const pipelineEl = document.getElementById("detail-pipeline");
+    const logEl = document.getElementById("detail-scan-log");
+    const fillEl = document.getElementById("detail-progress-fill");
+    const pctEl = document.getElementById("detail-progress-pct");
+    $$(".pipeline-step", pipelineEl).forEach((s) => { s.className = "pipeline-step error"; });
+    fillEl.style.width = "100%";
+    fillEl.style.background = "#DC2626";
+    pctEl.textContent = "Failed";
+    pctEl.style.color = "#DC2626";
+    logEl.innerHTML = '<div class="log-line error"><span class="log-ts">[Error]</span> The analysis pipeline encountered a failure. Please try running a new scan.</div>';
+  }
+
+  async function pollScanStatus(scanId) {
+    const check = async () => {
+      try {
+        const scan = await api("GET", `/api/scans/${scanId}`);
+        if (scan.status !== "running") {
+          loadScanDetail(scanId);
+          return;
+        }
+        setTimeout(check, 3000);
+      } catch { setTimeout(check, 5000); }
+    };
+    setTimeout(check, 3000);
   }
 
   function renderDetail(scan) {
@@ -343,16 +533,135 @@
     return n >= 1000 ? n.toLocaleString() : String(n);
   }
 
+  /* ── Severity Criteria ────────────────────────────────────────── */
+  const SEV_CRITERIA = {
+    Critical: "Breaking changes or security exposure",
+    High: "Functional degradation likely",
+    Medium: "Review and testing required",
+    Low: "Non-critical, address post-release",
+    Info: "Informational, no action needed",
+  };
+  const SEV_CRITERIA_LONG = {
+    Critical: "Breaking changes, data loss risk, or security vulnerabilities requiring immediate action before release",
+    High: "Significant functional impact — features may break or degrade, workaround needed before release",
+    Medium: "Moderate impact — behaviour changes that need review and testing, may require configuration updates",
+    Low: "Minor impact — cosmetic or non-critical changes, can be addressed post-release",
+    Info: "Informational — no action required, awareness only for new features or deprecation notices",
+  };
+
   /* ── Charts ──────────────────────────────────────────────────── */
   function renderCharts(scan) {
     if (sevChart) sevChart.destroy();
     if (catChart) catChart.destroy();
 
     const sevData = [scan.critical_count || 0, scan.high_count || 0, scan.medium_count || 0, scan.low_count || 0, scan.info_count || 0];
-    const sevLabels = ["CRIT", "HIGH", "MED", "LOW", "INFO"];
+    const sevLabels = ["Critical", "High", "Medium", "Low", "Info"];
     const sevColors = ["#DC2626", "#EA580C", "#CA8A04", "#16A34A", "#4F46E5"];
 
-    sevChart = new Chart(document.getElementById("chart-severity"), {
+    const sevFilterMap = { 0: "Critical", 1: "High", 2: "Medium", 3: "Low", 4: "Info" };
+    const sevCanvasEl = document.getElementById("chart-severity");
+
+    let sevBubble = document.getElementById("sev-bubble");
+    if (!sevBubble) {
+      sevBubble = document.createElement("div");
+      sevBubble.id = "sev-bubble";
+      sevBubble.className = "sev-bubble";
+      document.body.appendChild(sevBubble);
+    }
+    let bubblePinTimer = null;
+    let bubblePinned = false;
+
+    function showSevBubble(sevName, color, barX, barY) {
+      const impacts = (detailData?.impacts || []).filter((i) => i.severity === sevName);
+      if (!impacts.length) { sevBubble.classList.remove("visible"); return; }
+      const maxShow = 8;
+      const shown = impacts.slice(0, maxShow);
+      const more = impacts.length - maxShow;
+      sevBubble.innerHTML =
+        `<div class="sev-bubble-head" style="border-left:3px solid ${color}">${sevName} — ${impacts.length} impact${impacts.length > 1 ? "s" : ""}</div>` +
+        `<ul class="sev-bubble-list">${shown.map((imp) =>
+          `<li class="sev-bubble-item" data-imp-id="${imp.id}"><span class="sev-bubble-id">IMP-${String(imp.id).padStart(4, "0")}</span>${esc((imp.release_change || "Untitled").substring(0, 45))}</li>`
+        ).join("")}</ul>` +
+        (more > 0 ? `<div class="sev-bubble-more">+${more} more</div>` : "");
+
+      const canvasRect = sevCanvasEl.getBoundingClientRect();
+      const bw = 260;
+      let left = canvasRect.left + barX - bw / 2;
+      if (left < 8) left = 8;
+      if (left + bw > window.innerWidth - 8) left = window.innerWidth - bw - 8;
+      let top = canvasRect.top + barY - 10;
+      sevBubble.style.left = left + "px";
+      sevBubble.style.top = "auto";
+      sevBubble.style.bottom = "auto";
+
+      sevBubble.classList.add("visible");
+      const bh = sevBubble.offsetHeight;
+      const finalTop = top - bh;
+      sevBubble.style.top = (finalTop < 4 ? canvasRect.top + barY + 16 : finalTop) + "px";
+
+      sevBubble.querySelectorAll(".sev-bubble-item").forEach((li) => {
+        li.onclick = (e) => {
+          e.stopPropagation();
+          const impId = li.dataset.impId;
+          sevBubble.classList.remove("visible");
+          bubblePinned = false;
+          navigateToImpact(impId);
+        };
+      });
+    }
+
+    function hideSevBubble() {
+      if (!bubblePinned) sevBubble.classList.remove("visible");
+    }
+
+    function navigateToImpact(impId) {
+      const impacts = detailData?.impacts || [];
+      el.filter_severity.value = "";
+      el.filter_unresolved.checked = false;
+      el.inv_search.value = "";
+      const idx = impacts.findIndex((i) => String(i.id) === String(impId));
+      if (idx >= 0) {
+        invPage = Math.floor(idx / INV_PER_PAGE) + 1;
+        renderInventoryTable(impacts);
+      }
+      setTimeout(() => {
+        const detailRow = document.getElementById(`inv-detail-${impId}`);
+        if (detailRow) {
+          $$(".inv-detail-row", el.inv_tbody).forEach((r) => r.classList.remove("open"));
+          detailRow.classList.add("open");
+          detailRow.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 100);
+    }
+
+    sevCanvasEl.addEventListener("mouseleave", () => {
+      setTimeout(() => { if (!sevBubble.matches(":hover") && !bubblePinned) hideSevBubble(); }, 120);
+    });
+    sevBubble.addEventListener("mouseleave", () => {
+      setTimeout(() => { if (!sevCanvasEl.matches(":hover") && !bubblePinned) hideSevBubble(); }, 120);
+    });
+
+    const sevCriteriaShort = [SEV_CRITERIA.Critical, SEV_CRITERIA.High, SEV_CRITERIA.Medium, SEV_CRITERIA.Low, SEV_CRITERIA.Info];
+    const sevSubLabelPlugin = {
+      id: "sevSubLabels",
+      afterDraw(chart) {
+        const { ctx } = chart;
+        const xAxis = chart.scales.x;
+        const yBottom = chart.chartArea.bottom;
+        ctx.save();
+        ctx.font = "500 8.5px Inter, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        xAxis.ticks.forEach((_tick, i) => {
+          const x = xAxis.getPixelForValue(i);
+          ctx.fillStyle = sevColors[i] || "#9CA3AF";
+          ctx.fillText(sevCriteriaShort[i] || "", x, yBottom + 28);
+        });
+        ctx.restore();
+      },
+    };
+
+    sevChart = new Chart(sevCanvasEl, {
       type: "bar",
       data: {
         labels: sevLabels,
@@ -365,15 +674,43 @@
           barPercentage: 0.55,
         }],
       },
+      plugins: [sevSubLabelPlugin],
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        layout: { padding: { bottom: 26 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false },
+        },
         scales: {
           x: { grid: { display: false }, ticks: { color: "#4B5563", font: { size: 11, weight: 600, family: "Inter" } } },
           y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.05)" }, ticks: { color: "#9CA3AF", font: { size: 10 }, stepSize: 1 } },
         },
+        onHover: (event, elements) => {
+          event.native.target.style.cursor = elements.length ? "pointer" : "default";
+          if (bubblePinned) return;
+          if (elements.length) {
+            const idx = elements[0].index;
+            const rect = elements[0].element;
+            showSevBubble(sevFilterMap[idx], sevColors[idx], rect.x, rect.y);
+          } else {
+            hideSevBubble();
+          }
+        },
+        onClick: (_evt, elements) => {
+          if (!elements.length || !detailData) return;
+          const idx = elements[0].index;
+          const rect = elements[0].element;
+          bubblePinned = true;
+          if (bubblePinTimer) clearTimeout(bubblePinTimer);
+          showSevBubble(sevFilterMap[idx], sevColors[idx], rect.x, rect.y);
+          bubblePinTimer = setTimeout(() => { bubblePinned = false; hideSevBubble(); }, 6000);
+        },
       },
     });
+
+    const criteriaEl = document.getElementById("sev-criteria");
+    if (criteriaEl) criteriaEl.innerHTML = "";
 
     const impacts = scan.impacts || [];
     const catMap = {};
@@ -613,6 +950,8 @@
       const label = $(".conn-label", el.sidebar_status);
       const tbDot = $(".conn-dot", el.tb_org);
       const tbLabel = $("span:last-child", el.tb_org);
+      const envDot = document.getElementById("tb-env-dot");
+      const envLabel = document.getElementById("tb-env-label");
       if (o.orgs.length > 0) {
         const org = o.orgs[0];
         dot.className = "conn-dot connected";
@@ -620,12 +959,15 @@
         tbDot.className = "conn-dot connected";
         tbDot.style.width = "7px"; tbDot.style.height = "7px";
         tbLabel.textContent = org.username || org.alias;
+        if (envLabel) envLabel.textContent = org.instance_url?.includes("sandbox") || org.instance_url?.includes("test") ? "Sandbox" : "Production";
       } else {
         dot.className = "conn-dot disconnected";
         label.textContent = "No org connected";
         tbDot.className = "conn-dot disconnected";
         tbDot.style.width = "7px"; tbDot.style.height = "7px";
         tbLabel.textContent = "Not connected";
+        if (envLabel) envLabel.textContent = "No Environment";
+        if (envDot) envDot.style.background = "var(--text-3)";
       }
     } catch {}
   }
@@ -1024,11 +1366,23 @@
   }
 
   /* ── Boot ─────────────────────────────────────────────────────── */
+  function startTopbarClock() {
+    const el = document.getElementById("topbar-time");
+    if (!el) return;
+    const update = () => {
+      const now = new Date();
+      el.textContent = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) + "  ·  " + now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    };
+    update();
+    setInterval(update, 30000);
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     cacheEls();
     initNav();
     bindEvents();
     refreshTopbar();
+    startTopbarClock();
     navigate("dashboard");
   });
 })();

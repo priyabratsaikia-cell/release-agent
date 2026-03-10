@@ -11,7 +11,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260304j" />
 </head>
 <body>
 <div id="app">
@@ -40,12 +40,12 @@
       </a>
       <a class="nav-item" data-page="scans">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        <span>Scans &amp; Reports</span>
+        <span>Analysis &amp; Reports</span>
       </a>
       <div class="nav-divider"></div>
       <a class="nav-item" data-page="settings">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        <span>Settings</span>
+        <span>Configuration</span>
       </a>
     </nav>
 
@@ -63,16 +63,27 @@
 
     <!-- Top bar -->
     <header class="topbar">
-      <h2 class="topbar-title" id="page-title">Dashboard</h2>
-      <div class="topbar-badges">
-        <span class="tb-badge" id="tb-model">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/></svg>
+      <div class="topbar-left">
+        <nav class="topbar-breadcrumb" id="topbar-breadcrumb">
+          <span class="tb-crumb tb-crumb-root">Dashboard</span>
+        </nav>
+      </div>
+      <div class="topbar-center">
+        <div class="topbar-env">
+          <span class="tb-env-dot" id="tb-env-dot"></span>
+          <span class="tb-env-label" id="tb-env-label">Production</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="tb-badge tb-badge-model" id="tb-model">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="12" cy="14" r="2"/></svg>
           <span>No model</span>
         </span>
-        <span class="tb-badge" id="tb-org">
+        <span class="tb-badge tb-badge-org" id="tb-org">
           <span class="conn-dot disconnected" style="width:7px;height:7px"></span>
           <span>Not connected</span>
         </span>
+        <span class="tb-time" id="topbar-time"></span>
       </div>
     </header>
 
@@ -81,20 +92,26 @@
 
       <!-- DASHBOARD -->
       <section class="page active" id="page-dashboard">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h1 class="page-heading">Release Intelligence Dashboard</h1>
+            <p class="page-heading-sub">Monitor release impacts, track remediation progress, and manage org assessments.</p>
+          </div>
+          <button class="btn btn-accent btn-sm" id="dash-new-scan-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Analysis
+          </button>
+        </div>
         <div class="dash-stats" id="dash-stats"></div>
         <div class="dash-grid">
           <div class="dash-card dash-card-wide">
             <div class="dash-card-header">
-              <h3>Recent Scans</h3>
-              <button class="btn btn-accent btn-sm" id="dash-new-scan-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New Scan
-              </button>
+              <h3>Recent Analysis Runs</h3>
             </div>
             <div id="dash-recent-scans" class="dash-table-wrap"></div>
           </div>
           <div class="dash-card">
-            <h3>Quick Actions</h3>
+            <h3>Quick Actions & Navigation</h3>
             <div class="quick-actions">
               <button class="qa-btn" id="qa-new-scan">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -115,11 +132,14 @@
 
       <!-- SCANS LIST -->
       <section class="page" id="page-scans">
-        <div class="page-toolbar">
-          <h3>All Scans</h3>
+        <div class="page-header">
+          <div class="page-header-left">
+            <h1 class="page-heading">Analysis History & Reports</h1>
+            <p class="page-heading-sub">View past analyses, compare results across releases, and drill into detailed reports.</p>
+          </div>
           <button class="btn btn-accent btn-sm" id="scans-new-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Scan
+            New Analysis
           </button>
         </div>
         <div id="scans-list" class="scans-list"></div>
@@ -128,8 +148,8 @@
       <!-- NEW SCAN -->
       <section class="page" id="page-new-scan">
         <div class="scan-launch-card">
-          <h3>Launch Impact Analysis</h3>
-          <p class="text-muted">Select a Salesforce release to analyse against your connected org.</p>
+          <h3>Initiate Release Impact Analysis</h3>
+          <p class="text-muted">Select a Salesforce release to evaluate against your connected org's metadata and configurations.</p>
           <div class="form-group" style="max-width:400px">
             <label for="scan-release-select">Release</label>
             <select id="scan-release-select"><option value="">Choose release…</option></select>
@@ -188,11 +208,59 @@
           Back to Scans
         </button>
 
+        <!-- In-progress overlay (shown when scan is still running) -->
+        <div id="detail-progress-wrap" class="hidden">
+          <div class="scan-launch-card" style="margin-bottom:0">
+            <h3 id="detail-progress-title">Analysis In Progress</h3>
+            <p class="text-muted" id="detail-progress-sub">This scan is currently running. Live updates will appear below.</p>
+          </div>
+          <div class="pipeline" id="detail-pipeline">
+            <div class="pipeline-step" data-step="1">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+              </div></div>
+              <div class="step-label">Crawl Release</div>
+              <div class="step-sub"></div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="2">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              </div></div>
+              <div class="step-label">Retrieve Metadata</div>
+              <div class="step-sub"></div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="3">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="12" cy="14" r="2"/></svg>
+              </div></div>
+              <div class="step-label">AI Analysis</div>
+              <div class="step-sub"></div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="4">
+              <div class="step-icon-wrap"><div class="step-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </div></div>
+              <div class="step-label">Generate Report</div>
+              <div class="step-sub"></div>
+            </div>
+          </div>
+          <div class="scan-progress-bar-wrap">
+            <div class="scan-progress-bar"><div class="scan-progress-fill" id="detail-progress-fill"></div></div>
+            <span class="scan-progress-pct" id="detail-progress-pct">0%</span>
+          </div>
+          <div class="scan-log" id="detail-scan-log"></div>
+        </div>
+
+        <!-- Completed report content -->
+        <div id="detail-report-wrap">
         <!-- Impact Summary header (mockup style) -->
         <div class="report-hero">
           <div class="report-hero-left">
-            <h2 class="report-hero-title">Impact Summary</h2>
-            <p class="report-hero-sub" id="detail-subtitle">High-level overview of remediation status and enterprise-wide impact.</p>
+            <h2 class="report-hero-title">Impact Assessment Report</h2>
+            <p class="report-hero-sub" id="detail-subtitle">Enterprise-wide risk posture, remediation progress, and actionable intelligence.</p>
           </div>
           <button class="btn btn-accent btn-lg" id="export-report-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -206,8 +274,9 @@
         <!-- Charts row -->
         <div class="report-charts">
           <div class="report-chart-card">
-            <div class="report-chart-head"><h4>Impact by Severity</h4></div>
+            <div class="report-chart-head"><h4>Impact by Severity</h4><span class="chart-head-tag-muted">Hover or click a bar</span></div>
             <div class="report-chart-body"><canvas id="chart-severity"></canvas></div>
+            <div class="sev-criteria" id="sev-criteria"></div>
           </div>
           <div class="report-chart-card">
             <div class="report-chart-head"><h4>Category Breakdown</h4><span class="chart-head-tag" id="chart-cat-tag"></span></div>
@@ -221,7 +290,7 @@
         <!-- Inventory table -->
         <div class="inventory-section">
           <div class="inventory-toolbar">
-            <h3>Detailed Component Inventory</h3>
+            <h3>Detailed Impact Inventory</h3>
             <div class="inventory-controls">
               <div class="inv-search-wrap">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -257,6 +326,7 @@
           </div>
           <p>&copy; 2026 PwC. All rights reserved. PwC refers to the PwC network and/or one or more of its member firms.</p>
         </div>
+        </div><!-- /detail-report-wrap -->
       </section>
 
       <!-- SETTINGS -->
@@ -265,7 +335,7 @@
           <div class="settings-card">
             <h3>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-              Gemini API Key
+              AI Model Configuration
             </h3>
             <div class="form-group">
               <label for="s-api-key">API Key</label>
@@ -289,7 +359,7 @@
           <div class="settings-card">
             <h3>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20"/><path d="M5 20V8.2c0-1.12 0-1.68.218-2.108a2 2 0 01.874-.874C6.52 5 7.08 5 8.2 5h7.6c1.12 0 1.68 0 2.108.218a2 2 0 01.874.874C19 6.52 19 7.08 19 8.2V20"/></svg>
-              Connected Orgs
+              Salesforce Org Connections
             </h3>
             <div id="s-org-list" class="org-list"></div>
             <div class="connect-form">
@@ -309,6 +379,6 @@
 </div>
 
 <div id="toast-container"></div>
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=20260304j"></script>
 </body>
 </html>
